@@ -1,0 +1,18 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+
+*.zip
+*.pt
+
+bash_scripts/
+old_scripts/
+*.sb
+*.pth
+yolov5/
