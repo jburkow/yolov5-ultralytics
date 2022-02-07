@@ -1,12 +1,15 @@
 """
 Author: Greg Holste
 Additional: Jonathan Burkow (burkowjo@msu.edu), Michigan State University
-Last Modified: 01/22/2022
+Last Modified: 02/07/2022
 Description: Converts rib fracture data to proper format + directory structure for YOLOv5 training.
 
-Usage: python prep_data.py \
-    --data_dir /mnt/home/holstegr/MIDI/RibFracDet/processed_fracture_present_1Feb2020_20210420/
-    --save_dir /mnt/home/holstegr/MIDI/RibFracDet/YOLOv5-RibFrac/ribfrac_051721
+Usage: python prep_data.py --data_dir path/to/root/data/directory \
+                           --save_dir path/to/save/directory \
+                           --train_anno <train_csv_name>.csv \
+                           --val_anno <val_csv_name>.csv \
+                           --test_anno <test_csv_name>.csv \
+                           --symbolic
 """
 
 import argparse
@@ -16,11 +19,20 @@ import time
 
 import cv2
 import pandas as pd
+from tqdm import tqdm
 
 
-def create_directories(out_dir):
+def create_directories(out_dir: str) -> None:
+    """
+    Create directories for images and labels to be used for YOLOv5 training.
+
+    Parameters
+    ----------
+    out_dir : path to root directory for all YOLOv5 data folders
+    """
     if os.path.isdir(out_dir):
         shutil.rmtree(out_dir)
+        print('Removed previous data directories.')
     os.mkdir(out_dir)
     os.mkdir(os.path.join(out_dir, 'images'))
     os.mkdir(os.path.join(out_dir, 'images', 'train'))
@@ -30,29 +42,48 @@ def create_directories(out_dir):
     os.mkdir(os.path.join(out_dir, 'labels', 'train'))
     os.mkdir(os.path.join(out_dir, 'labels', 'val'))
     os.mkdir(os.path.join(out_dir, 'labels', 'test'))
+    print('Created all data directories.')
 
 
-def copy_images(annot_path, set_name):
+def copy_images(annot_path: str, set_name: str, symbolic: bool = False) -> None:
+    """
+    Copy images from the main data directory to the YOLO directory structure; can also be symbolic
+    links if file count or disk space needs to be considered.
+
+    Parameters
+    ----------
+    annot_path : path to annotation CSV to copy images from
+    set_name   : whether the annotation CSV is of training, validation, or test set images
+    symbolic   : true/false on whether to hard copy images or to use symbolic links
+    """
     annot = pd.read_csv(annot_path, names=['img_path', 'x1', 'y1', 'x2', 'y2', 'label'])
 
-    for img_path in annot['img_path'].unique().tolist():
+    for _, img_path in tqdm(enumerate(annot['img_path'].unique().tolist()), desc=f'Copying {set_name.title()} Images', total=len(annot['img_path'].unique().tolist())):
         if img_path.endswith('\''):  # manually overriding error where there would be an extra single quotation mark in an image ID
             img_path = img_path[:-1]  # remove last character
 
         patient_id = img_path.split('/')[-1]
 
-        # shutil.copy(img_path, os.path.join(args.save_dir, 'images', set_name))  # USE IF HARD COPYING FILES
-        os.symlink(img_path, os.path.join(args.save_dir, 'images', set_name, patient_id))
+        if symbolic:
+            os.symlink(img_path, os.path.join(args.save_dir, 'images', set_name, patient_id))
+        else:
+            shutil.copy(img_path, os.path.join(args.save_dir, 'images', set_name))
 
 
-def convert_to_yolo(annot_path, set_name):
+def convert_to_yolo(annot_path: str, set_name: str) -> None:
+    """
+    Convert labels from RetinaNet CSV format into YOLO txt format.
+
+    Parameters
+    ----------
+    annot_path : path to annotation CSV to copy images from
+    set_name   : whether the annotation CSV is of training, validation, or test set images
+    """
     annot = pd.read_csv(annot_path, names=['img_path', 'x1', 'y1', 'x2', 'y2', 'label'])
-
-    img_paths = annot['img_path'].unique().tolist()
 
     classes = ['fracture']
 
-    for img_path in img_paths:
+    for _, img_path in tqdm(enumerate(annot['img_path'].unique().tolist()), desc=f'Converting {set_name.title()} Labels', total=len(annot['img_path'].unique().tolist())):
         if not os.path.isfile(img_path):
             print(f"IMAGE FOR {patient_id} NOT FOUND/NOT READ IN")
             continue
@@ -88,11 +119,12 @@ def convert_to_yolo(annot_path, set_name):
 
 
 def main(parse_args):
+    """Main Function"""
     create_directories(parse_args.save_dir)
 
-    copy_images(os.path.join(parse_args.data_dir, parse_args.train_anno), 'train')
-    copy_images(os.path.join(parse_args.data_dir, parse_args.val_anno), 'val')
-    copy_images(os.path.join(parse_args.data_dir, parse_args.test_anno), 'test')
+    copy_images(os.path.join(parse_args.data_dir, parse_args.train_anno), 'train', parse_args.symbolic)
+    copy_images(os.path.join(parse_args.data_dir, parse_args.val_anno), 'val', parse_args.symbolic)
+    copy_images(os.path.join(parse_args.data_dir, parse_args.test_anno), 'test', parse_args.symbolic)
 
     convert_to_yolo(os.path.join(parse_args.data_dir, parse_args.train_anno), 'train')
     convert_to_yolo(os.path.join(parse_args.data_dir, parse_args.val_anno), 'val')
@@ -101,11 +133,12 @@ def main(parse_args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=str, default='/mnt/home/holstegr/MIDI/RibFracDet/processed_fracture_present_1Feb2020_20200906/')
-    parser.add_argument('--save_dir', type=str, default='/mnt/home/holstegr/MIDI/RibFracDet/YOLOv5-RibFrac/ribfrac')
+    parser.add_argument('--data_dir', type=str)
+    parser.add_argument('--save_dir', type=str)
     parser.add_argument('--train_anno', type=str, default='train_annotations.csv')
     parser.add_argument('--val_anno', type=str, default='val_annotations.csv')
     parser.add_argument('--test_anno', type=str, default='test_annotations.csv')
+    parser.add_argument('--symbolic', action='store_true', default=False)
 
     args = parser.parse_args()
 
