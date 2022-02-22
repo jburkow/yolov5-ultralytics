@@ -1,7 +1,7 @@
 """
-Author: Greg Holste
-Additional: Jonathan Burkow (burkowjo@msu.edu), Michigan State University
-Last Modified: 02/07/2022
+Author(s): Greg Holste (giholste@gmail.com),  UT Austin
+           Jonathan Burkow (burkowjo@msu.edu), Michigan State University
+Last Modified: 02/21/2022
 Description: Converts rib fracture data to proper format + directory structure for YOLOv5 training.
 
 Usage: python prep_data.py --data_dir path/to/root/data/directory \
@@ -96,7 +96,7 @@ def convert_to_yolo(annot_path: str, set_name: str) -> None:
 
         patient_id = img_path.split('/')[-1].split('.')[0]
 
-        with open(os.path.join(args.save_dir, 'labels', set_name, patient_id + '.txt'), 'w') as out:
+        with open(os.path.join(args.save_dir, 'labels', set_name, f"{patient_id}.txt"), 'w') as out:
             if img_path.endswith('\''):
                 img_path = img_path[:-1]  # remove last character
 
